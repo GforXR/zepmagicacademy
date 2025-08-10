@@ -1,0 +1,200 @@
+<!doctype html>
+<html lang="ko">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Litmus Demo (PyScript + JS Fallback)</title>
+    <link rel="stylesheet" href="https://pyscript.net/releases/2025.2.2/core.css">
+    <script type="module" src="https://pyscript.net/releases/2025.2.2/core.js"></script>
+    <style>
+      :root { --card: #ffffff; --ink:#111; --muted:#6b7280; --accent:#4f46e5; }
+      body { font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, "Noto Sans KR", Arial, "Apple SD Gothic Neo", "Malgun Gothic", sans-serif;
+             background: #f5f7fb; color: var(--ink); margin:0; }
+      .wrap { max-width: 900px; margin: 24px auto; padding: 16px; }
+      .card { background: var(--card); border-radius: 16px; box-shadow: 0 6px 24px rgba(0,0,0,0.06); padding: 20px; }
+      h1 { margin: 0 0 8px 0; font-weight: 800; font-size: 26px; letter-spacing: -0.01em; }
+      p.lead { margin: 0 0 16px 0; color: var(--muted); }
+      .panel { display: grid; grid-template-columns: 1fr 1fr; gap: 16px; margin-top: 12px; }
+      .box { border: 2px dashed #e5e7eb; border-radius: 14px; padding: 16px; }
+      .swatch { height: 56px; border-radius: 12px; border: 1px solid #e5e7eb; margin-top: 8px; }
+      .label { font-size: 13px; color: var(--muted); }
+      .row { display: grid; grid-template-columns: 1fr auto; gap: 12px; align-items: center; }
+      input[type="range"] { width: 260px; }
+      .footer { margin-top: 20px; font-size: 12px; color: var(--muted); }
+      button.primary { background: var(--accent); color: white; border: 0; border-radius: 12px; padding: 10px 14px; cursor: pointer; font-weight: 700; }
+      .note { font-size: 12px; color: var(--muted); }
+      @media (max-width: 800px){ .panel { grid-template-columns: 1fr; } }
+      .warn { background:#fff7ed; border:1px solid #fed7aa; color:#9a3412; padding:10px 14px; border-radius:12px; margin-top:12px; display:none; }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="card">
+        <h1>리트머스 실험 데모</h1>
+        <p class="lead">pH 슬라이더/버튼을 조작하면 붉은/푸른 리트머스 색이 변합니다. (PyScript가 차단되면 자동으로 JS로 동작)</p>
+
+        <div id="csp-warning" class="warn">안내: 이 페이지에서 PyScript 실행이 차단(CSP/보안정책)된 것 같아요. 대신 자바스크립트 대체 로직으로 실행 중입니다.</div>
+
+        <div class="box">
+          <div class="row">
+            <div>
+              <div class="label">pH 값</div>
+              <div id="ph-value" style="font-weight:800; font-size:22px">7.0</div>
+            </div>
+            <div>
+              <input id="ph" type="range" min="0" max="14" step="0.1" value="7" aria-label="pH slider">
+              <button class="primary" id="randomize">무작위</button>
+            </div>
+          </div>
+          <div style="margin-top:8px" class="note">규칙: 산성(pH&lt;7), 중성(pH≈7), 염기성(pH&gt;7). 붉은 리트머스는 염기성에서 파란색으로, 푸른 리트머스는 산성에서 빨간색으로 변합니다.</div>
+        </div>
+
+        <div class="panel">
+          <div class="box">
+            <div class="label">붉은색 리트머스 결과</div>
+            <div id="red-result" style="font-weight:700">중성 — 변화 없음</div>
+            <div id="red-swatch" class="swatch" style="background:#ef4444"></div>
+          </div>
+          <div class="box">
+            <div class="label">푸른색 리트머스 결과</div>
+            <div id="blue-result" style="font-weight:700">중성 — 변화 없음</div>
+            <div id="blue-swatch" class="swatch" style="background:#3b82f6"></div>
+          </div>
+        </div>
+
+        <div class="box" style="margin-top:16px">
+          <div class="label">빠른 선택</div>
+          <div style="display:flex; gap:8px; flex-wrap:wrap; margin-top:8px">
+            <button class="primary" data-ph="2">레몬즙 (pH≈2)</button>
+            <button class="primary" data-ph="3">식초 (pH≈3)</button>
+            <button class="primary" data-ph="7">증류수 (pH=7)</button>
+            <button class="primary" data-ph="8">베이킹소다 (pH≈8)</button>
+            <button class="primary" data-ph="10">세제 용액 (pH≈10)</button>
+            <button class="primary" data-ph="13">강염기성 (pH≈13)</button>
+          </div>
+        </div>
+
+        <div class="footer">© Litmus Demo — PyScript + JS Fallback</div>
+      </div>
+    </div>
+
+    <!-- PyScript (Python) version -->
+    <py-script>
+try:
+    from js import document
+    from math import isclose
+    import random
+
+    def classify(ph: float) -> str:
+        if ph < 7: return "산성"
+        if isclose(ph, 7.0, abs_tol=0.15): return "중성"
+        return "염기성"
+
+    def update_ui(ph: float):
+        document.getElementById("ph-value").innerText = f"{ph:.1f}"
+        cat = classify(ph)
+
+        red_label  = document.getElementById("red-result")
+        red_swatch = document.getElementById("red-swatch")
+        if ph > 7.15:
+            red_label.innerText = f"{cat} — 파란색으로 변함"
+            red_swatch.style.background = "#3b82f6"
+        elif ph < 6.85:
+            red_label.innerText = f"{cat} — 변화 없음 (빨간색 유지)"
+            red_swatch.style.background = "#ef4444"
+        else:
+            red_label.innerText = "중성 — 변화 없음"
+            red_swatch.style.background = "#ef4444"
+
+        blue_label  = document.getElementById("blue-result")
+        blue_swatch = document.getElementById("blue-swatch")
+        if ph < 6.85:
+            blue_label.innerText = f"{cat} — 빨간색으로 변함"
+            blue_swatch.style.background = "#ef4444"
+        elif ph > 7.15:
+            blue_label.innerText = f"{cat} — 변화 없음 (파란색 유지)"
+            blue_swatch.style.background = "#3b82f6"
+        else:
+            blue_label.innerText = "중성 — 변화 없음"
+            blue_swatch.style.background = "#3b82f6"
+
+    ph_input = document.getElementById("ph")
+    def on_input(evt): update_ui(float(evt.target.value))
+    ph_input.addEventListener("input", on_input)
+
+    def randomize(evt):
+        value = round(random.uniform(0, 14), 1)
+        ph_input.value = value
+        update_ui(value)
+    document.getElementById("randomize").addEventListener("click", randomize)
+
+    def on_quick(evt):
+        v = float(evt.target.getAttribute("data-ph"))
+        ph_input.value = v
+        update_ui(v)
+    for btn in document.querySelectorAll("button.primary[data-ph]"):
+        btn.addEventListener("click", on_quick)
+
+    # mark bound
+    from js import window
+    window.__litmus_bound__ = True
+    update_ui(7.0)
+
+except Exception as e:
+    # If PyScript fails due to CSP, fall back will take over.
+    from js import console
+    console.warn("PyScript failed, JS fallback will activate:", str(e))
+    pass
+    </py-script>
+
+    <!-- JS fallback: activates only if PyScript didn't bind -->
+    <script>
+      (function(){
+        function classify(ph){ if(ph<7) return "산성"; if(Math.abs(ph-7)<=0.15) return "중성"; return "염기성"; }
+        function updateUI(ph){
+          document.getElementById("ph-value").innerText = ph.toFixed(1);
+          const cat = classify(ph);
+          const redLabel = document.getElementById("red-result");
+          const redSwatch = document.getElementById("red-swatch");
+          if (ph > 7.15){ redLabel.innerText = cat + " — 파란색으로 변함"; redSwatch.style.background = "#3b82f6"; }
+          else if (ph < 6.85){ redLabel.innerText = cat + " — 변화 없음 (빨간색 유지)"; redSwatch.style.background = "#ef4444"; }
+          else { redLabel.innerText = "중성 — 변화 없음"; redSwatch.style.background = "#ef4444"; }
+
+          const blueLabel = document.getElementById("blue-result");
+          const blueSwatch = document.getElementById("blue-swatch");
+          if (ph < 6.85){ blueLabel.innerText = cat + " — 빨간색으로 변함"; blueSwatch.style.background = "#ef4444"; }
+          else if (ph > 7.15){ blueLabel.innerText = cat + " — 변화 없음 (파란색 유지)"; blueSwatch.style.background = "#3b82f6"; }
+          else { blueLabel.innerText = "중성 — 변화 없음"; blueSwatch.style.background = "#3b82f6"; }
+        }
+        function bindJS(){
+          const phInput = document.getElementById("ph");
+          if(!phInput) return;
+          phInput.addEventListener("input", (e)=> updateUI(parseFloat(e.target.value)));
+          document.getElementById("randomize").addEventListener("click", ()=>{
+            const v = +(Math.random()*14).toFixed(1);
+            phInput.value = v;
+            updateUI(v);
+          });
+          document.querySelectorAll("button.primary[data-ph]").forEach(btn=>{
+            btn.addEventListener("click", ()=>{
+              const v = parseFloat(btn.getAttribute("data-ph"));
+              phInput.value = v;
+              updateUI(v);
+            });
+          });
+          updateUI(7.0);
+        }
+        function activateFallback(){
+          const warn = document.getElementById("csp-warning");
+          if (warn) warn.style.display = "block";
+          bindJS();
+        }
+        // If PyScript didn't mark binding in ~1.2s, enable fallback
+        window.__litmus_bound__ = window.__litmus_bound__ || false;
+        setTimeout(function(){
+          if (!window.__litmus_bound__) activateFallback();
+        }, 1200);
+      })();
+    </script>
+  </body>
+</html>
